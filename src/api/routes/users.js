@@ -5,22 +5,30 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { verifyToken, isAdmin } = require('../middlewares/auth');
 
+function sendSuccess(res, status, message, data) {
+  const payload = { success: true };
+  if (message) payload.message = message;
+  if (typeof data !== 'undefined') payload.data = data;
+  return res.status(status).json(payload);
+}
+
+function sendError(res, status, message, errors = []) {
+  return res.status(status).json({
+    success: false,
+    message,
+    errors
+  });
+}
+
 /* GET - Buscar todos os usuários */
 // requer usuário autenticado como admin
 router.get('/', verifyToken, isAdmin, async function(req, res) {
   try {
     const result = await pool.query('SELECT id, login, email, role FROM usuario ORDER BY id');
-    res.json({
-      success: true,
-      data: result.rows
-    });
+    return sendSuccess(res, 200, null, result.rows);
   } catch (error) {
     console.error('Erro ao buscar usuários:', error);
-    // http status 500 - Internal Server Error
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
+    return sendError(res, 500, 'Erro interno do servidor');
   }
 });
 
@@ -32,24 +40,13 @@ router.get('/me', verifyToken, async function(req, res) {
     const result = await pool.query('SELECT id, login, email, role FROM usuario WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
-      // http status 404 - Not Found
-      return res.status(404).json({
-        success: false,
-        message: 'Usuário não encontrado'
-      });
+      return sendError(res, 404, 'Usuário não encontrado');
     }
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
+
+    return sendSuccess(res, 200, null, result.rows[0]);
   } catch (error) {
     console.error('Erro ao buscar usuário:', error);
-    // http status 500 - Internal Server Error
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
+    return sendError(res, 500, 'Erro interno do servidor');
   }
 });
 
@@ -60,24 +57,13 @@ router.get('/:id', verifyToken, isAdmin, async function(req, res) {
     const result = await pool.query('SELECT id, login, email, role FROM usuario WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
-      // http status 404 - Not Found
-      return res.status(404).json({
-        success: false,
-        message: 'Usuário não encontrado'
-      });
+      return sendError(res, 404, 'Usuário não encontrado');
     }
-    
-    res.json({
-      success: true,
-      data: result.rows[0]
-    });
+
+    return sendSuccess(res, 200, null, result.rows[0]);
   } catch (error) {
     console.error('Erro ao buscar usuário:', error);
-    // http status 500 - Internal Server Error
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
+    return sendError(res, 500, 'Erro interno do servidor');
   }
 });
 
@@ -88,29 +74,28 @@ router.post('/', verifyToken, isAdmin, async function(req, res) {
     
     // Validação básica
     if (!login || !email || !senha ) {
-      // http status 400 - Bad Request
-      return res.status(400).json({
-        success: false,
-        message: 'Login, email e senha são obrigatórios'
-      });
+      const errors = [];
+      if (!login) errors.push({ field: 'login', message: 'Login é obrigatório', code: 'REQUIRED' });
+      if (!email) errors.push({ field: 'email', message: 'Email é obrigatório', code: 'REQUIRED' });
+      if (!senha) errors.push({ field: 'senha', message: 'Senha é obrigatória', code: 'REQUIRED' });
+
+      return sendError(res, 400, 'Login, email e senha são obrigatórios', errors);
     }
     
     // Verificar se o login já existe
     const existingUser = await pool.query('SELECT id FROM usuario WHERE login = $1', [login]);
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Login já está em uso'
-      });
+      return sendError(res, 409, 'Login já está em uso', [
+        { field: 'login', message: 'Login já está em uso', code: 'CONFLICT' }
+      ]);
     }
 
     // Verificar se o email já existe
     const existingEmail = await pool.query('SELECT id FROM usuario WHERE email = $1', [email]);
     if (existingEmail.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Email já está em uso'
-      });
+      return sendError(res, 409, 'Email já está em uso', [
+        { field: 'email', message: 'Email já está em uso', code: 'CONFLICT' }
+      ]);
     }
 
     // Hash da senha
@@ -121,26 +106,14 @@ router.post('/', verifyToken, isAdmin, async function(req, res) {
       [login, email, hashedPassword, role]
     );
 
-    // http status 201 - Created
-    res.status(201).json({
-      success: true,
-      message: 'Usuário criado com sucesso',
-      data: result.rows[0]
-    });
+    return sendSuccess(res, 201, 'Usuário criado com sucesso', result.rows[0]);
   } catch (error) {
     console.error('Erro ao criar usuário:', error);
     // Verificar se é erro de constraint
     if (error.code === '23514') {
-      return res.status(400).json({
-        success: false,
-        message: 'Dados inválidos. Verifique os campos e tente novamente.'
-      });
+      return sendError(res, 400, 'Dados inválidos. Verifique os campos e tente novamente.');
     }
-    // http status 500 - Internal Server Error
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
+    return sendError(res, 500, 'Erro interno do servidor');
   }
 });
 
@@ -161,11 +134,7 @@ router.post('/login', async function(req, res) {
      se existe uma conta com aquele login 
     */
     if (result.rows.length === 0) {
-      // https status 401 - unauthorized
-      return res.status(401).json({
-        success: false,
-        message: 'Credenciais inválidas'
-      });
+      return sendError(res, 401, 'Credenciais inválidas');
     }
 
     // Objeto de usuário
@@ -180,19 +149,11 @@ router.post('/login', async function(req, res) {
     bcrypt.compare(password, user.passwordhash, (err, isMatch) => {
       if (err) {
         console.error('Erro no bcrypt:', err);
-        // https status 500 - internal server error
-        return res.status(500).json({
-          success: false,
-          message: 'Erro interno do servidor'
-        });
+        return sendError(res, 500, 'Erro interno do servidor');
       }
       
       if (!isMatch) {
-        // https status 401 - unauthorized
-        return res.status(401).json({
-          success: false,
-          message: 'Credenciais inválidas'
-        });
+        return sendError(res, 401, 'Credenciais inválidas');
       }
 
       // Cria o token com as informações do usuário logado e sua chave pública
@@ -209,21 +170,12 @@ router.post('/login', async function(req, res) {
         { expiresIn: '1h' } 
       );
 
-      // O token contém as informções do usuário com a chave para posterior validação
-      return res.status(200).json({
-        success: true,
-        token: token,
-        message: 'Autenticado com sucesso!'
-      });
+      return sendSuccess(res, 200, 'Autenticado com sucesso!', { token });
     });
 
   } catch (error) {
     console.error('Erro ao autenticar usuário:', error);
-    // http status 500 - Internal Server Error
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
+    return sendError(res, 500, 'Erro interno do servidor');
   }
   
 });
@@ -237,40 +189,34 @@ router.put('/:id', verifyToken, isAdmin, async function(req, res) {
     
     // Validação básica
     if (!login || !email || !role) {
-      // http status 400 - Bad Request
-      return res.status(400).json({
-        success: false,
-        message: 'Login, email e role são obrigatórios'
-      });
+      const errors = [];
+      if (!login) errors.push({ field: 'login', message: 'Login é obrigatório', code: 'REQUIRED' });
+      if (!email) errors.push({ field: 'email', message: 'Email é obrigatório', code: 'REQUIRED' });
+      if (!role) errors.push({ field: 'role', message: 'Role é obrigatório', code: 'REQUIRED' });
+
+      return sendError(res, 400, 'Login, email e role são obrigatórios', errors);
     }
     
     // Verificar se o usuário existe
     const userExists = await pool.query('SELECT id FROM usuario WHERE id = $1', [id]);
     if (userExists.rows.length === 0) {
-      // http status 404 - Not Found
-      return res.status(404).json({
-        success: false,
-        message: 'Usuário não encontrado'
-      });
+      return sendError(res, 404, 'Usuário não encontrado');
     }
     
     // Verificar se o login já está em uso por outro usuário
     const existingUser = await pool.query('SELECT id FROM usuario WHERE login = $1 AND id != $2', [login, id]);
     if (existingUser.rows.length > 0) {
-      // https status 409 - Conflict
-      return res.status(409).json({
-        success: false,
-        message: 'Login já está em uso por outro usuário'
-      });
+      return sendError(res, 409, 'Login já está em uso por outro usuário', [
+        { field: 'login', message: 'Login já está em uso por outro usuário', code: 'CONFLICT' }
+      ]);
     }
 
     // Verificar se o email já está em uso por outro usuário
     const existingEmail = await pool.query('SELECT id FROM usuario WHERE email = $1 AND id != $2', [email, id]);
     if (existingEmail.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Email já está em uso por outro usuário'
-      });
+      return sendError(res, 409, 'Email já está em uso por outro usuário', [
+        { field: 'email', message: 'Email já está em uso por outro usuário', code: 'CONFLICT' }
+      ]);
     }
     
     let query, params;
@@ -288,25 +234,14 @@ router.put('/:id', verifyToken, isAdmin, async function(req, res) {
     
     const result = await pool.query(query, params);
     
-    res.json({
-      success: true,
-      message: 'Usuário atualizado com sucesso',
-      data: result.rows[0]
-    });
+    return sendSuccess(res, 200, 'Usuário atualizado com sucesso', result.rows[0]);
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error);
     // Verificar se é erro de constraint
     if (error.code === '23514') {
-      return res.status(400).json({
-        success: false,
-        message: 'Dados inválidos. Verifique os campos e tente novamente.'
-      });
+      return sendError(res, 400, 'Dados inválidos. Verifique os campos e tente novamente.');
     }
-    // http status 500 - Internal Server Error
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
+    return sendError(res, 500, 'Erro interno do servidor');
   }
 });
 
@@ -318,26 +253,15 @@ router.delete('/:id', verifyToken, isAdmin, async function(req, res) {
     // Verificar se o usuário existe
     const userExists = await pool.query('SELECT id FROM usuario WHERE id = $1', [id]);
     if (userExists.rows.length === 0) {
-      // http status 404 - Not Found
-      return res.status(404).json({
-        success: false,
-        message: 'Usuário não encontrado'
-      });
+      return sendError(res, 404, 'Usuário não encontrado');
     }
     
     await pool.query('DELETE FROM usuario WHERE id = $1', [id]);
     
-    res.json({
-      success: true,
-      message: 'Usuário deletado com sucesso'
-    });
+    return sendSuccess(res, 200, 'Usuário deletado com sucesso');
   } catch (error) {
     console.error('Erro ao deletar usuário:', error);
-    // http status 500 - Internal Server Error
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor'
-    });
+    return sendError(res, 500, 'Erro interno do servidor');
   }
 });
 

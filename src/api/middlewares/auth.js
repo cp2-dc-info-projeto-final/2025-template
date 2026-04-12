@@ -11,7 +11,11 @@ const verifyToken = (req, res, next) => {
   
   if (!token) {
     // http status 401 = Unauthorized
-    return res.status(401).json({ message: 'Token não fornecido' });
+    return res.status(401).json({
+      success: false,
+      message: 'Token não fornecido',
+      errors: []
+    });
   }
   
   try {
@@ -25,7 +29,11 @@ const verifyToken = (req, res, next) => {
     next();
   } catch (error) {
     // http status 401 = Unauthorized
-    return res.status(401).json({ message: 'Token inválido' });
+    return res.status(401).json({
+      success: false,
+      message: 'Token inválido',
+      errors: []
+    });
   }
 };
 
@@ -35,7 +43,11 @@ const isAdmin = (req, res, next) => {
     next();
   } else {
     // http status 403 - Forbidden
-    return res.status(403).json({ message: 'Acesso negado: requer privilégios de administrador' });
+    return res.status(403).json({
+      success: false,
+      message: 'Acesso negado: requer privilégios de administrador',
+      errors: []
+    });
   }
 };
 

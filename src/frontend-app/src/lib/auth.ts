@@ -1,22 +1,19 @@
 import api from './api';
-
-export interface User {
-  id: string; // bigint from database comes as string in JSON
-  login: string;
-  email: string;
-  role: string;
-}
+import type { ApiResponse } from './api';
+import type { User } from './models/User';
 
 export interface LoginCredentials {
   login: string;
   password: string;
 }
 
-export interface LoginResponse {
-  success: boolean;
-  token?: string;
-  message?: string;
+export interface Session {
+  token: string;
 }
+
+export type LoginResponse = ApiResponse<Session>;
+
+export type { User };
 
 // Funções para obter, criar ou limpar o token de autenticação
 export function getToken(): string | null {
@@ -42,16 +39,30 @@ export function removeToken(): void {
 export async function login(credentials: LoginCredentials): Promise<LoginResponse> {
   try {
     const response = await api.post('/users/login', credentials);
-    
-    if (response.data.success && response.data.token) {
-      setToken(response.data.token);
-      return { success: true, token: response.data.token };
+
+    const body = response.data as LoginResponse;
+
+    if (body.success && body.data?.token) {
+      setToken(body.data.token);
+      return body;
     }
-    
-    return { success: false, message: 'Credenciais inválidas' };
+
+    if (body.success) {
+      return {
+        success: false,
+        message: 'Token não retornado na autenticação',
+        errors: []
+      };
+    }
+
+    return body;
   } catch (error) {
     console.error('Erro no login:', error);
-    return { success: false, message: 'Credenciais inválidas' };
+    const body = (error as any)?.response?.data as LoginResponse | undefined;
+    if (body) {
+      return body;
+    }
+    return { success: false, message: 'Credenciais inválidas', errors: [] };
   }
 }
 
@@ -76,11 +87,13 @@ export async function getCurrentUser(): Promise<User | null> {
     }
 
     const response = await api.get('/users/me');
+    const body = response.data as ApiResponse<User>;
 
-    if (response.data.success) {
-      return response.data.data;
+    if (body.success) {
+      return body.data ?? null;
     }
-    
+
+    removeToken();
     return null;
   } catch (error) {
     console.error('Erro ao carregar usuário:', error);

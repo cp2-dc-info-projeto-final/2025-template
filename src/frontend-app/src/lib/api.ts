@@ -1,5 +1,25 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse, type AxiosError } from 'axios';
 
+export interface ApiFieldError {
+  field: string;
+  message: string;
+  code?: string;
+}
+
+export interface ApiSuccess<T> {
+  success: true;
+  message?: string;
+  data?: T;
+}
+
+export interface ApiFailure {
+  success: false;
+  message: string;
+  errors: ApiFieldError[];
+}
+
+export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
+
 // Cria uma instância global do axios para API backend na porta 3000
 const api = axios.create({
   baseURL: 'http://localhost:3000',

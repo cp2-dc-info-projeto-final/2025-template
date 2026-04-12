@@ -5,14 +5,9 @@
   import { UserEditOutline, TrashBinOutline } from 'flowbite-svelte-icons'; // ícones
   import { goto } from '$app/navigation'; // navegação
   import api from '$lib/api'; // API backend
+  import type { ApiResponse } from '$lib/api';
   import { onMount } from 'svelte'; // ciclo de vida
-
-  type User = {
-    id: number;
-    login: string;
-    email: string;
-    role: string;
-  };
+  import type { User } from '$lib/models/User';
 
   let users: User[] = []; // lista de usuários
   let loading = true;
@@ -49,11 +44,17 @@
     deletingId = id;
     error = '';
     try {
-      await api.delete(`/users/${id}`);
+      const res = await api.delete(`/users/${id}`);
+      const body = res.data as ApiResponse<null>;
+      if (!body.success) {
+        error = body.message;
+        return;
+      }
       users = users.filter(user => user.id !== id);
     } catch (e: any) {
       console.error('Erro ao deletar usuário:', e);
-      error = e.response?.data?.message || 'Erro ao remover usuário.';
+      const body = e.response?.data as ApiResponse<null> | undefined;
+      error = body?.message || 'Erro ao remover usuário.';
     } finally {
       deletingId = null;
     }
@@ -62,11 +63,16 @@
   onMount(async () => {
     try {
       const res = await api.get('/users');
-      users = res.data.data;
-      console.log(users);
+      const body = res.data as ApiResponse<User[]>;
+      if (body.success) {
+        users = body.data ?? [];
+      } else {
+        error = body.message;
+      }
     } catch (e: any) {
       console.error('Erro ao carregar usuários:', e);
-      error = e.response?.data?.message || 'Erro ao carregar usuários';
+      const body = e.response?.data as ApiResponse<User[]> | undefined;
+      error = body?.message || 'Erro ao carregar usuários';
     } finally {
       loading = false;
     }

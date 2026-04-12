@@ -8,40 +8,63 @@
   
   let user: User | null = null;
   let hasToken = false;
+  let loadingUser = false;
+  let authRequestId = 0;
 
   // Verifica token sincronamente (instantâneo)
-  function updateAuthStatus() {
+  async function updateAuthStatus() {
     hasToken = getToken() !== null;
-    
-    // Se tem token, carrega dados do usuário em background
-    if (hasToken && !user) {
-      getCurrentUser().then(userData => {
-        user = userData;
-      }).catch(() => {
-        user = null;
-        hasToken = false;
-      });
-    } else if (!hasToken) {
+
+    if (!hasToken) {
       user = null;
+      loadingUser = false;
+      return;
+    }
+
+    if (user || loadingUser) {
+      return;
+    }
+
+    loadingUser = true;
+    const requestId = ++authRequestId;
+
+    try {
+      const userData = await getCurrentUser();
+      if (requestId !== authRequestId) {
+        return;
+      }
+      user = userData;
+      hasToken = userData !== null;
+    } catch {
+      if (requestId !== authRequestId) {
+        return;
+      }
+      user = null;
+      hasToken = false;
+    } finally {
+      if (requestId === authRequestId) {
+        loadingUser = false;
+      }
     }
   }
 
   // Reativo à mudança de página
-  $: if ($page.url) {
-    updateAuthStatus();
+  $: if ($page.url.pathname) {
+    void updateAuthStatus();
   }
 
   onMount(() => {
-    updateAuthStatus();
+    void updateAuthStatus();
   });
 
   // função para logout (só apaga o token)
   async function handleLogout() {
-    console.log('Logout iniciado...');
     try {
+      authRequestId += 1;
       await logout();
-      user = null; // Limpar estado local
-      console.log('Logout concluído, redirecionando...');
+      user = null;
+      hasToken = false;
+      loadingUser = false;
       goto('/login');
     } catch (error) {
       console.error('Erro no logout:', error);
@@ -77,6 +100,10 @@
               </button>
             </div>
           </NavLi>
+        {:else if loadingUser}
+          <NavLi class="text-lg font-bold px-4 py-2 text-primary-500 dark:text-primary-400">Carregando...</NavLi>
+        {:else}
+          <NavLi href="/login" class="text-lg font-bold px-4 py-2 text-primary-500 dark:text-primary-400 hover:text-yellow-300 hover:bg-gray-700 focus:text-yellow-400 focus:bg-gray-700 transition-colors rounded-lg">Login</NavLi>
         {/if}
       {:else}
         <!-- se não tem token, exibe botão de login-->

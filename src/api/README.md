@@ -103,6 +103,35 @@ O `nodemon` permite reiniciar automaticamente o servidor Node.js quando arquivos
 npm run dev
 ```
 
+### Contrato de Resposta (padrão)
+
+Todas as rotas e middlewares seguem o mesmo formato JSON:
+
+- Sucesso: `success`, `message` (opcional) e `data` (quando aplicável)
+- Erro: `success`, `message` e `errors`
+
+> O status HTTP fica no protocolo (`res.status(...)`), não no corpo JSON.
+
+**Sucesso**
+```json
+{
+  "success": true,
+  "message": "Opcional",
+  "data": {}
+}
+```
+
+**Erro**
+```json
+{
+  "success": false,
+  "message": "Descrição do erro",
+  "errors": [
+    { "field": "email", "message": "Email inválido", "code": "INVALID" }
+  ]
+}
+```
+
 ### GET /users
 Retorna todos os usuários
 ```json
@@ -251,8 +280,10 @@ curl -X POST http://localhost:3000/users/login \
 ```json
 {
   "success": true,
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "message": "Autenticado com sucesso!"
+  "message": "Autenticado com sucesso!",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
 }
 ```
 
