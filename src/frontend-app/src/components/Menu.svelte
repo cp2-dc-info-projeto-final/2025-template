@@ -76,7 +76,7 @@
   <Navbar class="fixed start-0 top-0 z-20 w-full bg-gray-800 px-2 py-2.5 sm:px-4">
     <NavBrand href="/">
       <img src="/images/icon.svg" class="me-3 h-6 sm:h-9" alt="Logo aleatória" />
-      <Heading class="self-center text-xl font-semibold whitespace-nowrap text-primary-500 dark:text-primary-400">Projeto Modelo 2025</Heading>
+      <Heading class="self-center text-xl font-semibold whitespace-nowrap text-primary-500 dark:text-primary-400">Projeto Modelo 2026</Heading>
     </NavBrand>
     <NavHamburger />
     <NavUl>

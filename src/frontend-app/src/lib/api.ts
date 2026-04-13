@@ -1,4 +1,5 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse, type AxiosError } from 'axios';
+import { removeToken } from './auth';
 
 export interface ApiFieldError {
   field: string;
@@ -52,8 +53,8 @@ api.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
-      // Token inválido ou expirado, remover do sessionStorage
-      sessionStorage.removeItem('auth_token');
+      // Token inválido ou expirado, remover usando função centralizada
+      removeToken();
       // Redirecionar para login se não estiver na página de login
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';

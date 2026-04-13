@@ -7,11 +7,7 @@ export interface LoginCredentials {
   password: string;
 }
 
-export interface Session {
-  token: string;
-}
-
-export type LoginResponse = ApiResponse<Session>;
+export type LoginResponse = ApiResponse<{ token: string }>;
 
 export type { User };
 
@@ -58,11 +54,18 @@ export async function login(credentials: LoginCredentials): Promise<LoginRespons
     return body;
   } catch (error) {
     console.error('Erro no login:', error);
+    
+    // Tratamento específico para diferentes tipos de erro
+    if (error.code === 'NETWORK_ERROR' || !error.response) {
+      return { success: false, message: 'Erro de conexão com o servidor', errors: [] };
+    }
+    
     const body = (error as any)?.response?.data as LoginResponse | undefined;
     if (body) {
       return body;
     }
-    return { success: false, message: 'Credenciais inválidas', errors: [] };
+    
+    return { success: false, message: 'Erro ao tentar autenticar', errors: [] };
   }
 }
 
@@ -70,7 +73,12 @@ export async function logout(): Promise<void> {
   try {
     const token = getToken();
     if (token) {
-      await api.post('/users/logout');
+      // Tenta fazer logout no servidor, mas não falha se não der certo
+      try {
+        await api.post('/users/logout');
+      } catch (logoutError) {
+        console.warn('Logout no servidor falhou, removendo token localmente:', logoutError);
+      }
     }
   } catch (error) {
     console.error('Erro no logout:', error);
@@ -81,11 +89,7 @@ export async function logout(): Promise<void> {
 
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const token = getToken();
-    if (!token) {
-      return null;
-    }
-
+    // O interceptor já adiciona o token automaticamente se existir
     const response = await api.get('/users/me');
     const body = response.data as ApiResponse<User>;
 
@@ -97,7 +101,10 @@ export async function getCurrentUser(): Promise<User | null> {
     return null;
   } catch (error) {
     console.error('Erro ao carregar usuário:', error);
-    removeToken();
+    // Só remove token se for erro 401 (não autorizado)
+    if ((error as any)?.response?.status === 401) {
+      removeToken();
+    }
     return null;
   }
 }
